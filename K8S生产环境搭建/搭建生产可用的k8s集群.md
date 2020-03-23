@@ -92,7 +92,6 @@ kubernetes-server-linux-amd64.tar.gz: OK
 解压文件后
 
 ```
-^C
 [root@localhost ~]#  tar -zxf kubernetes-server-linux-amd64.tar.gz
 [root@localhost ~]# ls kubernetes
 addons  kubernetes-src.tar.gz  LICENSES  server
@@ -147,19 +146,18 @@ EOF
 
 ```
 [root@localhost ~]#  mkdir -p /etc/systemd/system/kubelet.service.d
-[root@localhost ~]#  cat <<'EOF' > /etc/systemd/system/kubelet.service.d/kubeadm.conf
-> [Service]
-> Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
-> Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
-> EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
-> EnvironmentFile=-/etc/default/kubelet
-> ExecStart=
-> ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
-> EOF
-
+[root@localhost ~]#   cat <<'EOF' > /etc/systemd/system/kubelet.service.d/kubeadm.conf
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+EnvironmentFile=-/etc/default/kubelet
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
+EOF
 ```
 
-### 
+
 
 ```
 [root@localhost ~]# systemctl enable kubelet
@@ -432,7 +430,7 @@ Unable to connect to the server: dial tcp 192.168.129.131:8443: connect: no rout
 
 ### 参数
 
-- n使用 `kubectl` 的参数 `--kubeconfig` 或者环境变量 `KUBECONFIG`
+- 使用 `kubectl` 的参数 `--kubeconfig` 或者环境变量 `KUBECONFIG`
 
   ```shell
   [root@localhost ~]# kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes  
@@ -536,11 +534,17 @@ Unable to connect to the server: dial tcp 192.168.129.131:8443: connect: no rout
 
   
 
-  
-
 - 重新初始化集群，并传递参数。
 
+  `sysctl net.bridge.bridge-nf-call-iptables=1`
+
   ` kubeadm init --kubernetes-version v1.11.3 --pod-network-cidr=10.244.0.0/16`
+
+  
+
+  执行执行上面的拷贝配置文件到当前
+
+  
 
 - 此时，`CNI` 也尚未初始化完成，我们还需完成以下的步骤。
 
@@ -582,13 +586,73 @@ kube-system   kube-proxy-n6fzw                                1/1       Running 
 kube-system   kube-scheduler-localhost.localdomain            1/1       Running             0          16m
 ```
 
+我们发现有两个 `coredns` 的 `Pod` 是 `ContainerCreating` 的状态，但并未就绪
+
+pod有个调度过程
+
 ### 新增Node
 
 kebeadm init 之后会有如下的信息
 
-在新的机器上执行之后会将Node加入集群
+Master 确保防火墙开放相应的端口或者关闭
 
 ```
- kubeadm join 192.168.129.133:6443 --token 9os0c1.zy9yvd57d045law7 --discovery-token-ca-cert-hash sha256:21718bc4613fd75c3144118ac1cedf21d442d5442d541150a8a817736f6e9829
+systemctl stop firewalld 
+```
+
+在新的机器上执行之后会将Node加入集群
+
+```shell
+$ mkdir -p $HOME/.kube
+$ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+$ sudo chown $(id -u):$(id -g) $HOME/.kube/config
+```
+
+记住初始化集群上面的配置和操作要提前做好，将 master 节点上面的 $HOME/.kube/config 文件拷贝到 node 节点对应的文件中，安装 kubeadm、kubelet、kubectl，然后执行上面初始化完成后提示的 join 命令即可
+
+参考：https://www.qikqiak.com/post/use-kubeadm-install-kubernetes-1.15.3/
+
+`sysctl net.bridge.bridge-nf-call-iptables=1`
+
+```
+ kubeadm join 192.168.30.131:6443 --token spo946.pbwjye0sy9vbag08 --discovery-token-ca-cert-hash sha256:be4b5702979802e380923b91cf5596c5e63be8a66ec667cdf1019fcec8ca7241
+```
+
+> 如果忘记了上面的 join 命令可以使用命令`kubeadm token create --print-join-command`重新获取。
+
+下面的日志是有防火墙的时候一直无法连接，关闭Master防火墙后OK
+
+```
+[root@localhost ~]#  kubeadm join 192.168.199.129:6443 --token u0d5bk.sxlhh58tadml9ka1 --discovery-token-ca-cert-hash sha256:67b61a61978c607b565aaceaa2c07cf8df8ace3cc3f15b3defd35266d19e8627
+[preflight] running pre-flight checks
+	[WARNING RequiredIPVSKernelModulesAvailable]: the IPVS proxier will not be used, because the following required kernel modules are not loaded: [ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh] or no builtin kernel ipvs support: map[ip_vs:{} ip_vs_rr:{} ip_vs_wrr:{} ip_vs_sh:{} nf_conntrack_ipv4:{}]
+[discovery] Failed to request cluster info, will try again: [Get https://192.168.199.129:6443/api/v1/namespaces/kube-public/configmaps/cluster-info: dial tcp 192.168.199.129:6443: connect: no route to host]
+[discovery] Failed to request cluster info, will try again: [Get https://192.168.199.129:6443/api/v1/namespaces/kube-public/configmaps/cluster-info: dial tcp 192.168.199.129:6443: connect: no route to host]
+[discovery] Requesting info from "https://192.168.199.129:6443" again to validate TLS against the pinned public key
+[discovery] Cluster info signature and contents are valid and TLS certificate validates against pinned roots, will use API Server "192.168.199.129:6443"
+[discovery] Successfully established connection with API Server "192.168.199.129:6443"
+[kubelet] Downloading configuration for the kubelet from the "kubelet-config-1.11" ConfigMap in the kube-system namespace
+[kubelet] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[kubelet] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[preflight] Activating the kubelet service
+[tlsbootstrap] Waiting for the kubelet to perform the TLS Bootstrap...
+[patchnode] Uploading the CRI Socket information "/var/run/dockershim.sock" to the Node API object "localhost.localdomain" as an annotation
+
+This node has joined the cluster:
+* Certificate signing request was sent to master and a response
+  was received.
+* The Kubelet was informed of the new secure connection details.
+
+Run 'kubectl get nodes' on the master to see this node join the cluster.
+
+```
+
+在master上查看
+
+```shell
+[root@master ~]# kubectl get nodes
+NAME                    STATUS    ROLES     AGE       VERSION
+localhost.localdomain   Ready     <none>    17s       v1.11.3
+master                  Ready     master    5m        v1.11.3
 ```
 
