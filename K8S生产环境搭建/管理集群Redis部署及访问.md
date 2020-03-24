@@ -271,3 +271,11 @@ k8s官网：https://kubernetes.io/docs/setup/production-environment/tools/kubead
 阳明的博客：使用 kubeadm 搭建 v1.15.3 版本 Kubernetes 集群
 
 https://www.qikqiak.com/post/use-kubeadm-install-kubernetes-1.15.3/
+
+解决 Node 无法加入的问题 ：从这里了解了是CNI的问题
+
+[https://www.funtl.com/zh/service-mesh-kubernetes/%E8%A7%A3%E5%86%B3-Node-%E6%97%A0%E6%B3%95%E5%8A%A0%E5%85%A5%E7%9A%84%E9%97%AE%E9%A2%98.html#%E6%9C%AC%E8%8A%82%E8%A7%86%E9%A2%91](https://www.funtl.com/zh/service-mesh-kubernetes/解决-Node-无法加入的问题.html#本节视频)
+
+重启 Kubernetes Pod的几种方式
+
+https://segmentfault.com/a/1190000020675199
